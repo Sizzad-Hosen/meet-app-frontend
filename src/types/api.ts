@@ -1,12 +1,23 @@
-export type User = {
+export type ApiResponse<T> = {
+  success: boolean;
+  message: string;
+  data: T;
+};
+
+export type AuthUser = {
   id: string;
   name: string;
   email: string;
+  role?: string;
+  avatarUrl?: string | null;
+  isVerified?: boolean;
+  createdAt?: string;
 };
 
 export type AuthResponse = {
-  accessToken: string;
-  user: User;
+  accessToken?: string;
+  refreshToken?: string;
+  user?: AuthUser;
 };
 
 export type RegisterRequest = {
@@ -20,17 +31,28 @@ export type LoginRequest = {
   password: string;
 };
 
+export type ForgotPasswordRequest = {
+  email: string;
+};
+
+export type ResetPasswordRequest = {
+  email: string;
+  newPassword: string;
+};
+
 export type Meeting = {
   id: string;
   title: string;
-  joinCode: string;
+  joinCode?: string;
+  code?: string;
   type: "instant" | "scheduled";
-  hostId: string;
-  max_participants: number;
-  waiting_room_on: boolean;
-  allow_screenshare: boolean;
-  screenshare_needs_approval: boolean;
-  is_recorded: boolean;
+  hostId?: string;
+  max_participants?: number;
+  waiting_room_on?: boolean;
+  allow_screenshare?: boolean;
+  screenshare_needs_approval?: boolean;
+  is_recorded?: boolean;
+  status?: string;
   scheduled_at?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -49,4 +71,88 @@ export type CreateMeetingRequest = {
 
 export type JoinMeetingRequest = {
   joinCode: string;
+};
+
+export type UpdateMeetingRequest = Partial<
+  Omit<CreateMeetingRequest, "type">
+>;
+
+export type MeetingParticipant = {
+  id: string;
+  userId?: string;
+  meetingId?: string;
+  name?: string;
+  email?: string;
+  role?: "host" | "cohost" | "participant" | string;
+  status?: "waiting" | "admitted" | "denied" | string;
+  isMuted?: boolean;
+  joinedAt?: string;
+};
+
+export type CreateBreakoutRequest = {
+  rooms?: Array<{
+    name?: string;
+    participantIds?: string[];
+  }>;
+};
+
+export type BroadcastBreakoutRequest = {
+  message: string;
+};
+
+export type BreakoutRoom = {
+  id: string;
+  name: string;
+  meetingId?: string;
+  participants?: MeetingParticipant[];
+  createdAt?: string;
+};
+
+export type CreatePollRequest = {
+  question: string;
+  options: string[];
+};
+
+export type SubmitVoteRequest = {
+  optionId: string;
+};
+
+export type PollOption = {
+  id: string;
+  text?: string;
+  option?: string;
+  votes?: number;
+};
+
+export type Poll = {
+  id: string;
+  question: string;
+  options: PollOption[];
+  isClosed?: boolean;
+  createdAt?: string;
+};
+
+export type PollResult = {
+  pollId: string;
+  question?: string;
+  options: PollOption[];
+  totalVotes?: number;
+};
+
+export type ScreenShareStatus = {
+  active?: boolean;
+  isSharing?: boolean;
+  userId?: string | null;
+  requestedBy?: string | null;
+  status?: string;
+};
+
+export type Recording = {
+  id: string;
+  meetingId?: string;
+  url?: string | null;
+  status?: string;
+  startedAt?: string;
+  stoppedAt?: string | null;
+  createdAt?: string;
 };
