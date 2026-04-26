@@ -8,11 +8,13 @@ import { useForm } from "react-hook-form";
 import type { z } from "zod";
 import {
   CalendarClock,
+  Copy,
   DoorOpen,
   LogOut,
   Mic,
   MonitorUp,
   Radio,
+  Share2,
   ShieldCheck,
   Users,
   Video,
@@ -83,6 +85,10 @@ export default function Home() {
   const [logout] = useLogoutMutation();
   const [message, setMessage] = useState("");
   const [createdCode, setCreatedCode] = useState("");
+  const createdMeetingLink =
+    typeof window !== "undefined" && createdCode
+      ? `${window.location.origin}/meetings/${createdCode}`
+      : "";
   const createForm = useForm<CreateMeetingFormValues>({
     resolver: zodResolver(createMeetingSchema),
     defaultValues: {
@@ -116,10 +122,7 @@ export default function Home() {
           result.data.meeting.code ??
           "";
       setCreatedCode(code);
-      setMessage(result.message);
-      if (code) {
-        router.push(`/meetings/${code}`);
-      }
+      setMessage(code ? "Meeting created. Share the code or link with participants." : result.message);
     } catch (error) {
       setMessage(getApiErrorMessage(error));
     }
@@ -137,10 +140,28 @@ export default function Home() {
     }
   }
 
+  async function handleCopyCreatedCode() {
+    if (!createdCode) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(createdCode);
+    setMessage("Meeting code copied.");
+  }
+
+  async function handleCopyCreatedLink() {
+    if (!createdMeetingLink) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(createdMeetingLink);
+    setMessage("Meeting link copied.");
+  }
+
   return (
-    <main className="min-h-screen bg-[linear-gradient(135deg,#f8fafc_0%,#eef2ff_45%,#f0fdfa_100%)]">
+    <main className="min-h-screen bg-[#f8fafc]">
       <section className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/85 px-4 py-3 shadow-sm backdrop-blur">
+        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <div className="flex items-center gap-3">
             <span className="grid size-10 place-items-center rounded-md bg-slate-950 text-white">
               <Video className="size-5" />
@@ -186,18 +207,18 @@ export default function Home() {
           </div>
         </header>
 
-        <div className="grid flex-1 gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="grid flex-1 gap-6 lg:grid-cols-[1fr_0.85fr]">
           <section className="flex flex-col gap-6">
-            <Card className="overflow-hidden">
+            <Card className="overflow-hidden rounded-2xl">
               <CardHeader className="border-b border-slate-200">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <CardTitle>Start a meeting</CardTitle>
+                    <CardTitle className="text-xl">Start a meeting</CardTitle>
                     <p className="mt-1 text-sm text-slate-500">
-                      Calls `POST /api/v1/meetings/create`.
+                      Create a room, copy the invite, then admit guests from the waiting room.
                     </p>
                   </div>
-                  <Badge>Protected API</Badge>
+                  <Badge variant="success">Host ready</Badge>
                 </div>
               </CardHeader>
               <CardContent className="p-5">
@@ -249,12 +270,39 @@ export default function Home() {
                     {createState.isLoading ? "Creating..." : "Create meeting"}
                   </Button>
                 </form>
+                {createdCode ? (
+                  <div className="mt-5 rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
+                    <p className="text-sm font-semibold text-cyan-950">Meeting is ready</p>
+                    <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+                      <div className="rounded-xl bg-white p-3">
+                        <p className="text-xs uppercase tracking-wide text-slate-500">Code</p>
+                        <p className="font-mono text-2xl font-semibold text-slate-950">{createdCode}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" onClick={handleCopyCreatedCode}>
+                          <Copy className="size-4" />
+                          Copy code
+                        </Button>
+                        <Button type="button" variant="outline" onClick={handleCopyCreatedLink}>
+                          <Share2 className="size-4" />
+                          Copy link
+                        </Button>
+                        <Button type="button" onClick={() => router.push(`/meetings/${createdCode}`)}>
+                          Enter room
+                        </Button>
+                      </div>
+                    </div>
+                    <p className="mt-3 truncate rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
+                      {createdMeetingLink}
+                    </p>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="rounded-2xl">
               <CardHeader>
-                <CardTitle>Join meeting</CardTitle>
+                <CardTitle className="text-xl">Join meeting</CardTitle>
               </CardHeader>
               <CardContent className="p-5 pt-0">
                 <form
@@ -267,11 +315,6 @@ export default function Home() {
                     {joinState.isLoading ? "Joining..." : "Join"}
                   </Button>
                 </form>
-                {createdCode ? (
-                  <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                    Created meeting code: {createdCode}
-                  </p>
-                ) : null}
                 {message ? (
                   <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
                     {message}
@@ -282,7 +325,7 @@ export default function Home() {
           </section>
 
           <aside className="grid content-start gap-6">
-            <Card>
+            <Card className="rounded-2xl">
               <CardHeader>
                 <CardTitle>Feature API map</CardTitle>
               </CardHeader>
