@@ -106,6 +106,7 @@ export type UpdateMeetingRequest = Partial<
 
 export type MeetingParticipant = {
   id: string;
+  user?: Pick<AuthUser, "id" | "name" | "email" | "avatarUrl">;
   userId?: string;
   user_id?: string;
   meetingId?: string;

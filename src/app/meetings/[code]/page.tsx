@@ -86,7 +86,7 @@ function MeetingDetailContent() {
   const params = useParams<{ code: string }>();
   const router = useRouter();
   const code = params?.code ?? "";
-  const accessToken = useAppSelector((state) => state.auth.accessToken);
+  const { accessToken, user } = useAppSelector((state) => state.auth);
   const [message, setMessage] = useState("");
   const [liveKitToken, setLiveKitToken] = useState("");
   const [joinStatus, setJoinStatus] = useState("");
@@ -253,6 +253,11 @@ function MeetingDetailContent() {
     });
   }
 
+  async function handleCopyMeetingLink() {
+    await navigator.clipboard.writeText(`${window.location.origin}/meetings/${code}`);
+    setMessage("Meeting link copied.");
+  }
+
   const waitingUsers = waiting.data?.data ?? [];
   const participantUsers = participants.data?.data ?? [];
   const breakoutRooms = Array.isArray(breakouts.data?.data)
@@ -261,6 +266,25 @@ function MeetingDetailContent() {
   const pollItems = polls.data?.data ?? [];
   const recordingItems = recordings.data?.data ?? [];
   const liveKitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL ?? "ws://localhost:7880";
+  const getParticipantUserId = (participant: (typeof participantUsers)[number]) =>
+    participant.user_id ?? participant.userId ?? participant.user?.id ?? "";
+  const getParticipantLabel = (participant: (typeof participantUsers)[number]) =>
+    participant.user?.email ??
+    participant.email ??
+    participant.user?.name ??
+    participant.name ??
+    getParticipantUserId(participant) ??
+    participant.id;
+  const currentParticipant = participantUsers.find(
+    (participant) => getParticipantUserId(participant) === user?.id,
+  );
+  const isHost =
+    meeting.data?.data.host_id === user?.id || currentParticipant?.role === "host";
+  const canModerate = isHost || currentParticipant?.role === "cohost";
+  const isAdmitted =
+    currentParticipant?.status === "admitted" ||
+    joinStatus === "admitted" ||
+    Boolean(liveKitToken);
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-4 sm:px-6 lg:px-8">
@@ -277,18 +301,25 @@ function MeetingDetailContent() {
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="success">Socket {socket.status}</Badge>
             <Badge>{meeting.data?.data.status ?? "loading"}</Badge>
+            <Button variant="outline" onClick={handleCopyMeetingLink}>
+              Copy link
+            </Button>
             <Button variant="outline" onClick={handleLeaveMeeting}>
               Leave
             </Button>
             <Button onClick={handleJoinMeeting}>
               Join meeting
             </Button>
-            <Button variant="outline" onClick={() => run(() => endMeeting(code).unwrap())}>
-              End meeting
-            </Button>
-            <Button variant="outline" onClick={handleDeleteMeeting}>
-              Delete
-            </Button>
+            {isHost ? (
+              <>
+                <Button variant="outline" onClick={() => run(() => endMeeting(code).unwrap())}>
+                  End meeting
+                </Button>
+                <Button variant="outline" onClick={handleDeleteMeeting}>
+                  Delete
+                </Button>
+              </>
+            ) : null}
           </div>
         </header>
 
@@ -305,6 +336,7 @@ function MeetingDetailContent() {
 
         <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
           <section className="grid gap-6">
+            {canModerate ? (
             <Card>
               <CardHeader>
                 <CardTitle>Meeting settings</CardTitle>
@@ -348,7 +380,9 @@ function MeetingDetailContent() {
                 </form>
               </CardContent>
             </Card>
+            ) : null}
 
+            {canModerate ? (
             <Card>
               <CardHeader>
                 <CardTitle>Waiting room</CardTitle>
@@ -362,12 +396,12 @@ function MeetingDetailContent() {
                 ) : (
                   waitingUsers.map((participant) => (
                     <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 p-3" key={participant.id}>
-                      <span className="text-sm text-slate-700">{participant.email ?? participant.userId ?? participant.id}</span>
+                      <span className="text-sm text-slate-700">{getParticipantLabel(participant)}</span>
                       <div className="flex gap-2">
-                        <Button size="sm" onClick={() => run(() => admitParticipant({ code, userId: participant.userId ?? participant.id }).unwrap())}>
+                        <Button size="sm" onClick={() => run(() => admitParticipant({ code, userId: getParticipantUserId(participant) }).unwrap())}>
                           Admit
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => run(() => denyParticipant({ code, userId: participant.userId ?? participant.id }).unwrap())}>
+                        <Button size="sm" variant="outline" onClick={() => run(() => denyParticipant({ code, userId: getParticipantUserId(participant) }).unwrap())}>
                           Deny
                         </Button>
                       </div>
@@ -376,32 +410,40 @@ function MeetingDetailContent() {
                 )}
               </CardContent>
             </Card>
+            ) : null}
 
             <Card>
               <CardHeader>
                 <CardTitle>Participants</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 p-4 pt-0">
+                {canModerate ? (
                 <Button size="sm" variant="outline" onClick={() => run(() => muteAll(code).unwrap())}>
                   <Mic className="size-4" />
                   Mute all
                 </Button>
+                ) : null}
                 {participantUsers.map((participant) => (
                   <div className="grid gap-3 rounded-md border border-slate-200 p-3 md:grid-cols-[1fr_auto]" key={participant.id}>
                     <div className="text-sm">
-                      <p className="font-medium text-slate-900">{participant.email ?? participant.name ?? participant.userId ?? participant.id}</p>
+                      <p className="font-medium text-slate-900">{getParticipantLabel(participant)}</p>
                       <p className="text-slate-500">{participant.role} · {participant.status}</p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" onClick={() => run(() => muteParticipant({ code, userId: participant.userId ?? participant.id }).unwrap())}>Mute</Button>
-                      <Button size="sm" variant="outline" onClick={() => run(() => assignCohost({ code, userId: participant.userId ?? participant.id }).unwrap())}>Co-host</Button>
-                      <Button size="sm" variant="outline" onClick={() => run(() => kickParticipant({ code, userId: participant.userId ?? participant.id }).unwrap())}>Kick</Button>
-                    </div>
+                    {canModerate ? (
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" onClick={() => run(() => muteParticipant({ code, userId: getParticipantUserId(participant) }).unwrap())}>Mute</Button>
+                        {isHost ? (
+                          <Button size="sm" variant="outline" onClick={() => run(() => assignCohost({ code, userId: getParticipantUserId(participant) }).unwrap())}>Co-host</Button>
+                        ) : null}
+                        <Button size="sm" variant="outline" onClick={() => run(() => kickParticipant({ code, userId: getParticipantUserId(participant) }).unwrap())}>Kick</Button>
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </CardContent>
             </Card>
 
+            {canModerate ? (
             <Card>
               <CardHeader>
                 <CardTitle>Polls</CardTitle>
@@ -431,9 +473,11 @@ function MeetingDetailContent() {
                 ))}
               </CardContent>
             </Card>
+            ) : null}
           </section>
 
           <aside className="grid content-start gap-6">
+            {canModerate ? (
             <Card>
               <CardHeader>
                 <CardTitle>Breakout rooms</CardTitle>
@@ -457,6 +501,7 @@ function MeetingDetailContent() {
                 ))}
               </CardContent>
             </Card>
+            ) : null}
 
             <Card>
               <CardHeader>
@@ -465,18 +510,19 @@ function MeetingDetailContent() {
               <CardContent className="space-y-3 p-4 pt-0">
                 <p className="text-sm text-slate-500">Status: {screenShare.data?.data.status ?? String(screenShare.data?.data.active ?? "unknown")}</p>
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={() => run(() => startScreenShare(code).unwrap())}><MonitorUp className="size-4" />Start</Button>
-                  <Button size="sm" variant="outline" onClick={() => run(() => stopScreenShare(code).unwrap())}>Stop</Button>
-                  {participantUsers[0]?.userId ? (
+                  <Button disabled={!isAdmitted} size="sm" onClick={() => run(() => startScreenShare(code).unwrap())}><MonitorUp className="size-4" />Start</Button>
+                  <Button disabled={!isAdmitted} size="sm" variant="outline" onClick={() => run(() => stopScreenShare(code).unwrap())}>Stop</Button>
+                  {canModerate && participantUsers[0] ? (
                     <>
-                      <Button size="sm" variant="outline" onClick={() => run(() => approveScreenShare({ code, userId: participantUsers[0].userId as string }).unwrap())}>Approve first</Button>
-                      <Button size="sm" variant="outline" onClick={() => run(() => denyScreenShare({ code, userId: participantUsers[0].userId as string }).unwrap())}>Deny first</Button>
+                      <Button size="sm" variant="outline" onClick={() => run(() => approveScreenShare({ code, userId: getParticipantUserId(participantUsers[0]) }).unwrap())}>Approve first</Button>
+                      <Button size="sm" variant="outline" onClick={() => run(() => denyScreenShare({ code, userId: getParticipantUserId(participantUsers[0]) }).unwrap())}>Deny first</Button>
                     </>
                   ) : null}
                 </div>
               </CardContent>
             </Card>
 
+            {isHost ? (
             <Card>
               <CardHeader>
                 <CardTitle>Recordings</CardTitle>
@@ -497,6 +543,7 @@ function MeetingDetailContent() {
                 ))}
               </CardContent>
             </Card>
+            ) : null}
 
             <Card>
               <CardHeader>
