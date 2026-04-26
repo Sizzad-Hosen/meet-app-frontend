@@ -3,30 +3,38 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import type { z } from "zod";
 import { AuthPanel } from "@/components/auth/auth-panel";
 import { FormMessage } from "@/components/auth/form-message";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getApiErrorMessage } from "@/lib/api-error";
-import { useRegisterMutation } from "@/redux/features/auth/authApi";
+import { registerSchema } from "@/lib/validations";
+import { useRegisterMutation, useSendVerificationEmailMutation } from "@/redux/features/auth/authApi";
+
+type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const router = useRouter();
   const [register, { isLoading }] = useRegisterMutation();
+  const [sendVerificationEmail] = useSendVerificationEmailMutation();
   const [message, setMessage] = useState("");
+  const {
+    formState: { errors },
+    handleSubmit,
+    register: registerField,
+  } = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema),
+  });
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function onSubmit(values: RegisterFormValues) {
     setMessage("");
 
-    const form = new FormData(event.currentTarget);
-
     try {
-      await register({
-        name: String(form.get("name")),
-        email: String(form.get("email")),
-        password: String(form.get("password")),
-      }).unwrap();
+      await register(values).unwrap();
+      await sendVerificationEmail({ email: values.email }).unwrap();
       router.push("/login");
     } catch (error) {
       setMessage(getApiErrorMessage(error));
@@ -45,16 +53,18 @@ export default function RegisterPage() {
           Your backend currently creates the user, then login issues the token.
         </p>
       </div>
-      <form className="space-y-4" onSubmit={handleSubmit}>
-        <Input name="name" placeholder="Full name" required />
-        <Input name="email" placeholder="Email address" required type="email" />
+      <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+        <Input placeholder="Full name" {...registerField("name")} />
+        <FormMessage message={errors.name?.message} tone="error" />
+        <Input placeholder="Email address" type="email" {...registerField("email")} />
+        <FormMessage message={errors.email?.message} tone="error" />
         <Input
           minLength={6}
-          name="password"
           placeholder="Password"
-          required
           type="password"
+          {...registerField("password")}
         />
+        <FormMessage message={errors.password?.message} tone="error" />
         <FormMessage message={message} tone="error" />
         <Button className="w-full" disabled={isLoading} type="submit">
           {isLoading ? "Creating account..." : "Create account"}

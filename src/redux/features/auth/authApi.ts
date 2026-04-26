@@ -7,6 +7,8 @@ import type {
   LoginRequest,
   RegisterRequest,
   ResetPasswordRequest,
+  SendVerificationEmailRequest,
+  VerifyEmailRequest,
 } from "@/types/api";
 
 export const authApi = baseApi.injectEndpoints({
@@ -44,6 +46,34 @@ export const authApi = baseApi.injectEndpoints({
         method: "POST",
         body,
       }),
+    }),
+    sendVerificationEmail: builder.mutation<
+      ApiResponse<{ isVerified: boolean; verificationLink?: string | null }>,
+      SendVerificationEmailRequest
+    >({
+      query: (body) => ({
+        url: "/auth/send-verification-email",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Auth"],
+    }),
+    verifyEmail: builder.mutation<
+      ApiResponse<{ user?: AuthResponse["user"] }>,
+      VerifyEmailRequest
+    >({
+      query: (body) => ({
+        url: "/auth/verify-email",
+        method: "POST",
+        body,
+      }),
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        const { data } = await queryFulfilled;
+        if (data.data.user) {
+          dispatch(setCredentials({ user: data.data.user }));
+        }
+      },
+      invalidatesTags: ["Auth"],
     }),
     resetPassword: builder.mutation<ApiResponse<null>, ResetPasswordRequest>({
       query: (body) => ({
@@ -86,4 +116,6 @@ export const {
   useRefreshTokenMutation,
   useRegisterMutation,
   useResetPasswordMutation,
+  useSendVerificationEmailMutation,
+  useVerifyEmailMutation,
 } = authApi;

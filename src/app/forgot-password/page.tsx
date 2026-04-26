@@ -2,28 +2,34 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import type { z } from "zod";
 import { AuthPanel } from "@/components/auth/auth-panel";
 import { FormMessage } from "@/components/auth/form-message";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getApiErrorMessage } from "@/lib/api-error";
+import { emailSchema } from "@/lib/validations";
 import { useForgotPasswordMutation } from "@/redux/features/auth/authApi";
+
+type EmailFormValues = z.infer<typeof emailSchema>;
 
 export default function ForgotPasswordPage() {
   const [forgotPassword, { isLoading }] = useForgotPasswordMutation();
   const [message, setMessage] = useState("");
   const [tone, setTone] = useState<"error" | "success">("success");
+  const {
+    formState: { errors },
+    handleSubmit,
+    register,
+  } = useForm<EmailFormValues>({ resolver: zodResolver(emailSchema) });
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function onSubmit(values: EmailFormValues) {
     setMessage("");
 
-    const form = new FormData(event.currentTarget);
-
     try {
-      const result = await forgotPassword({
-        email: String(form.get("email")),
-      }).unwrap();
+      const result = await forgotPassword(values).unwrap();
       setTone("success");
       setMessage(result.message);
     } catch (error) {
@@ -46,8 +52,9 @@ export default function ForgotPasswordPage() {
           Enter your account email address.
         </p>
       </div>
-      <form className="space-y-4" onSubmit={handleSubmit}>
-        <Input name="email" placeholder="Email address" required type="email" />
+      <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+        <Input placeholder="Email address" type="email" {...register("email")} />
+        <FormMessage message={errors.email?.message} tone="error" />
         <FormMessage message={message} tone={tone} />
         <Button className="w-full" disabled={isLoading} type="submit">
           {isLoading ? "Sending..." : "Send reset link"}

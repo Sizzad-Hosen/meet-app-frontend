@@ -20,23 +20,24 @@
 
 ## Next Tasks
 
-- [ ] Add backend email verification endpoints before building a real verification flow.
-- [ ] Add route guards that redirect unauthenticated users from protected screens.
-- [ ] Add breakout room endpoints: create, list, join, end all, broadcast.
-- [ ] Add poll endpoints: create, list, vote, results, close.
-- [ ] Add screen share endpoints: status, start, stop, approve, deny.
-- [ ] Add recording endpoints: start, stop, list, download, delete.
-- [ ] Build full detail pages for meetings, participants, polls, recordings, breakout rooms, screen share, and LiveKit room entry.
-- [ ] Add Socket.IO client integration for live meeting room events.
-- [ ] Add LiveKit room UI after token generation.
-- [ ] Add form validation with Zod and React Hook Form.
-- [ ] Add frontend tests for API hooks and core meeting flows.
+- [x] Add backend email verification endpoints before building a real verification flow.
+- [x] Add route guards that redirect unauthenticated users from protected screens.
+- [x] Add breakout room endpoints: create, list, join, end all, broadcast.
+- [x] Add poll endpoints: create, list, vote, results, close.
+- [x] Add screen share endpoints: status, start, stop, approve, deny.
+- [x] Add recording endpoints: start, stop, list, download, delete.
+- [x] Build full detail pages for meetings, participants, polls, recordings, breakout rooms, screen share, and LiveKit room entry.
+- [x] Add Socket.IO client integration for live meeting room events.
+- [x] Add LiveKit room UI after token generation.
+- [x] Add form validation with Zod and React Hook Form.
+- [x] Add frontend tests for API hooks and core meeting flows.
 
 ## Review Notes
 
-- Backend `POST /auth/register` currently sets the refresh cookie but returns only `data.user`; it does not return `accessToken` in the response body. The frontend redirects users to `/login` after registration so protected calls have a token.
-- Backend README mentions email verification conceptually through `isVerified`, but no email verification route is exposed yet. This remains pending.
-- Backend reset password currently accepts `{ "email": "...", "newPassword": "..." }`; token-based reset validation can be added when the backend exposes token validation.
+- Backend `POST /auth/register` still returns `data.user`; the frontend redirects to `/login` after registration and sends a verification email request.
+- Backend email verification is now exposed through `POST /auth/send-verification-email` and `POST /auth/verify-email`.
+- Backend reset password currently accepts `{ "email": "...", "newPassword": "..." }`; token-based reset validation can be added later if desired.
+- Recording start/stop hooks and UI are implemented. A full local start/stop smoke test requires a reachable LiveKit egress service.
 
 ## Local Commands
 

@@ -3,29 +3,36 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import type { z } from "zod";
 import { AuthPanel } from "@/components/auth/auth-panel";
 import { FormMessage } from "@/components/auth/form-message";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getApiErrorMessage } from "@/lib/api-error";
+import { loginSchema } from "@/lib/validations";
 import { useLoginMutation } from "@/redux/features/auth/authApi";
+
+type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
   const [login, { isLoading }] = useLoginMutation();
   const [message, setMessage] = useState("");
+  const {
+    formState: { errors },
+    handleSubmit,
+    register,
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+  });
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function onSubmit(values: LoginFormValues) {
     setMessage("");
 
-    const form = new FormData(event.currentTarget);
-
     try {
-      await login({
-        email: String(form.get("email")),
-        password: String(form.get("password")),
-      }).unwrap();
+      await login(values).unwrap();
       router.push("/");
     } catch (error) {
       setMessage(getApiErrorMessage(error));
@@ -44,9 +51,11 @@ export default function LoginPage() {
           Use your backend account credentials.
         </p>
       </div>
-      <form className="space-y-4" onSubmit={handleSubmit}>
-        <Input name="email" placeholder="Email address" required type="email" />
-        <Input name="password" placeholder="Password" required type="password" />
+      <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+        <Input placeholder="Email address" type="email" {...register("email")} />
+        <FormMessage message={errors.email?.message} tone="error" />
+        <Input placeholder="Password" type="password" {...register("password")} />
+        <FormMessage message={errors.password?.message} tone="error" />
         <FormMessage message={message} tone="error" />
         <Button className="w-full" disabled={isLoading} type="submit">
           {isLoading ? "Signing in..." : "Login"}

@@ -35,6 +35,14 @@ export type ForgotPasswordRequest = {
   email: string;
 };
 
+export type SendVerificationEmailRequest = {
+  email: string;
+};
+
+export type VerifyEmailRequest = {
+  token: string;
+};
+
 export type ResetPasswordRequest = {
   email: string;
   newPassword: string;
@@ -160,9 +168,13 @@ export type ScreenShareStatus = {
 
 export type Recording = {
   id: string;
+  meeting_id?: string;
   meetingId?: string;
+  s3_key?: string | null;
   url?: string | null;
   status?: string;
+  started_at?: string;
+  ended_at?: string | null;
   startedAt?: string;
   stoppedAt?: string | null;
   createdAt?: string;

@@ -1,7 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import type { z } from "zod";
 import {
   CalendarClock,
   DoorOpen,
@@ -18,12 +22,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getApiErrorMessage } from "@/lib/api-error";
+import { createMeetingSchema, joinMeetingSchema } from "@/lib/validations";
 import { useAppSelector } from "@/redux/hook";
 import { useLogoutMutation } from "@/redux/features/auth/authApi";
 import {
   useCreateMeetingMutation,
   useJoinMeetingMutation,
 } from "@/redux/features/Meeting/meetingApi";
+
+type CreateMeetingFormValues = z.infer<typeof createMeetingSchema>;
+type JoinMeetingFormValues = z.infer<typeof joinMeetingSchema>;
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
@@ -68,56 +76,62 @@ const featureCards = [
 ];
 
 export default function Home() {
+  const router = useRouter();
   const { accessToken, user } = useAppSelector((state) => state.auth);
   const [createMeeting, createState] = useCreateMeetingMutation();
   const [joinMeeting, joinState] = useJoinMeetingMutation();
   const [logout] = useLogoutMutation();
   const [message, setMessage] = useState("");
   const [createdCode, setCreatedCode] = useState("");
+  const createForm = useForm<CreateMeetingFormValues>({
+    resolver: zodResolver(createMeetingSchema),
+    defaultValues: {
+      title: "",
+      type: "instant",
+      max_participants: 100,
+      scheduled_at: "",
+      waiting_room_on: true,
+      allow_screenshare: true,
+      screenshare_needs_approval: true,
+      is_recorded: false,
+    },
+  });
+  const joinForm = useForm<JoinMeetingFormValues>({
+    resolver: zodResolver(joinMeetingSchema),
+  });
 
-  async function handleCreateMeeting(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleCreateMeeting(values: CreateMeetingFormValues) {
     setMessage("");
     setCreatedCode("");
 
-    const form = new FormData(event.currentTarget);
-
     try {
       const result = await createMeeting({
-        title: String(form.get("title")),
-        type: String(form.get("type")) as "instant" | "scheduled",
-        max_participants: Number(form.get("max_participants") || 100),
-        waiting_room_on: form.get("waiting_room_on") === "on",
-        allow_screenshare: form.get("allow_screenshare") === "on",
-        screenshare_needs_approval:
-          form.get("screenshare_needs_approval") === "on",
-        is_recorded: form.get("is_recorded") === "on",
-        scheduled_at: String(form.get("scheduled_at") || "") || undefined,
+        ...values,
+        scheduled_at: values.scheduled_at || undefined,
       }).unwrap();
 
-      setCreatedCode(
+      const code =
         result.data.meeting.join_code ??
           result.data.meeting.joinCode ??
           result.data.meeting.code ??
-          "",
-      );
+          "";
+      setCreatedCode(code);
       setMessage(result.message);
+      if (code) {
+        router.push(`/meetings/${code}`);
+      }
     } catch (error) {
       setMessage(getApiErrorMessage(error));
     }
   }
 
-  async function handleJoinMeeting(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleJoinMeeting(values: JoinMeetingFormValues) {
     setMessage("");
 
-    const form = new FormData(event.currentTarget);
-
     try {
-      const result = await joinMeeting({
-        joinCode: String(form.get("joinCode")),
-      }).unwrap();
+      const result = await joinMeeting(values).unwrap();
       setMessage(result.message);
+      router.push(`/meetings/${values.joinCode}`);
     } catch (error) {
       setMessage(getApiErrorMessage(error));
     }
@@ -187,25 +201,27 @@ export default function Home() {
                 </div>
               </CardHeader>
               <CardContent className="p-5">
-                <form className="space-y-4" onSubmit={handleCreateMeeting}>
+                <form className="space-y-4" onSubmit={createForm.handleSubmit(handleCreateMeeting)}>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <Input name="title" placeholder="Meeting title" required />
+                    <Input placeholder="Meeting title" {...createForm.register("title")} />
                     <Input
                       min={2}
-                      name="max_participants"
                       placeholder="Max participants"
                       type="number"
+                      {...createForm.register("max_participants", {
+                        valueAsNumber: true,
+                      })}
                     />
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <select
                       className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-                      name="type"
+                      {...createForm.register("type")}
                     >
                       <option value="instant">Instant</option>
                       <option value="scheduled">Scheduled</option>
                     </select>
-                    <Input name="scheduled_at" type="datetime-local" />
+                    <Input type="datetime-local" {...createForm.register("scheduled_at")} />
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {[
@@ -221,8 +237,8 @@ export default function Home() {
                         <input
                           className="size-4 accent-cyan-600"
                           defaultChecked={name !== "is_recorded"}
-                          name={name}
                           type="checkbox"
+                          {...createForm.register(name as keyof CreateMeetingFormValues)}
                         />
                         {label}
                       </label>
@@ -243,9 +259,9 @@ export default function Home() {
               <CardContent className="p-5 pt-0">
                 <form
                   className="grid gap-3 sm:grid-cols-[1fr_auto]"
-                  onSubmit={handleJoinMeeting}
+                  onSubmit={joinForm.handleSubmit(handleJoinMeeting)}
                 >
-                  <Input name="joinCode" placeholder="ABCD1234" required />
+                  <Input placeholder="ABCD1234" {...joinForm.register("joinCode")} />
                   <Button disabled={!accessToken || joinState.isLoading} type="submit">
                     <DoorOpen className="size-4" />
                     {joinState.isLoading ? "Joining..." : "Join"}
