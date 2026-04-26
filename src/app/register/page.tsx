@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
@@ -16,8 +16,10 @@ import { useRegisterMutation, useSendVerificationEmailMutation } from "@/redux/f
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
-export default function RegisterPage() {
+function RegisterContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams?.get("redirect") || "/";
   const [register, { isLoading }] = useRegisterMutation();
   const [sendVerificationEmail] = useSendVerificationEmailMutation();
   const [message, setMessage] = useState("");
@@ -35,7 +37,7 @@ export default function RegisterPage() {
     try {
       await register(values).unwrap();
       await sendVerificationEmail({ email: values.email }).unwrap();
-      router.push("/login");
+      router.push(`/login?redirect=${encodeURIComponent(redirectTo)}`);
     } catch (error) {
       setMessage(getApiErrorMessage(error));
     }
@@ -72,10 +74,27 @@ export default function RegisterPage() {
       </form>
       <p className="mt-5 text-sm text-slate-600">
         Already have an account?{" "}
-        <Link className="font-medium text-cyan-700" href="/login">
+        <Link
+          className="font-medium text-cyan-700"
+          href={`/login?redirect=${encodeURIComponent(redirectTo)}`}
+        >
           Login
         </Link>
       </p>
     </AuthPanel>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="grid min-h-screen place-items-center bg-slate-50 text-sm text-slate-500">
+          Loading registration...
+        </main>
+      }
+    >
+      <RegisterContent />
+    </Suspense>
   );
 }

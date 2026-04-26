@@ -15,7 +15,8 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (ready && !accessToken) {
-      router.replace("/login");
+      const redirect = `${window.location.pathname}${window.location.search}`;
+      router.replace(`/login?redirect=${encodeURIComponent(redirect)}`);
     }
   }, [accessToken, ready, router]);
 
