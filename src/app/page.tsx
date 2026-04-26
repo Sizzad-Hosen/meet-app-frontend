@@ -95,7 +95,12 @@ export default function Home() {
         scheduled_at: String(form.get("scheduled_at") || "") || undefined,
       }).unwrap();
 
-      setCreatedCode(result.data.joinCode ?? result.data.code ?? "");
+      setCreatedCode(
+        result.data.meeting.join_code ??
+          result.data.meeting.joinCode ??
+          result.data.meeting.code ??
+          "",
+      );
       setMessage(result.message);
     } catch (error) {
       setMessage(getApiErrorMessage(error));

@@ -45,8 +45,11 @@ export type Meeting = {
   title: string;
   joinCode?: string;
   code?: string;
+  join_code?: string;
   type: "instant" | "scheduled";
   hostId?: string;
+  host_id?: string;
+  livekit_room_name?: string;
   max_participants?: number;
   waiting_room_on?: boolean;
   allow_screenshare?: boolean;
@@ -54,8 +57,16 @@ export type Meeting = {
   is_recorded?: boolean;
   status?: string;
   scheduled_at?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
   createdAt?: string;
+  created_at?: string;
   updatedAt?: string;
+};
+
+export type CreateMeetingResponse = {
+  meeting: Meeting;
+  livekitToken?: string;
 };
 
 export type CreateMeetingRequest = {
