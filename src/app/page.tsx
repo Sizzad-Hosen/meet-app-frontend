@@ -92,7 +92,7 @@ export default function Home() {
       scheduled_at: "",
       waiting_room_on: true,
       allow_screenshare: true,
-      screenshare_needs_approval: true,
+      screenshare_needs_approval: false,
       is_recorded: false,
     },
   });
@@ -225,20 +225,20 @@ export default function Home() {
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {[
-                      ["waiting_room_on", "Waiting room"],
-                      ["allow_screenshare", "Allow screen share"],
-                      ["screenshare_needs_approval", "Require share approval"],
-                      ["is_recorded", "Record meeting"],
-                    ].map(([name, label]) => (
+                      ["waiting_room_on", "Waiting room", true],
+                      ["allow_screenshare", "Allow screen share", true],
+                      ["screenshare_needs_approval", "Require share approval", false],
+                      ["is_recorded", "Record meeting", false],
+                    ].map(([name, label, checked]) => (
                       <label
                         className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
-                        key={name}
+                        key={String(name)}
                       >
                         <input
                           className="size-4 accent-cyan-600"
-                          defaultChecked={name !== "is_recorded"}
+                          defaultChecked={Boolean(checked)}
                           type="checkbox"
-                          {...createForm.register(name as keyof CreateMeetingFormValues)}
+                          {...createForm.register(String(name) as keyof CreateMeetingFormValues)}
                         />
                         {label}
                       </label>

@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
+import { Room } from "livekit-client";
 import {
   DoorOpen,
   Megaphone,
@@ -90,13 +91,21 @@ function MeetingDetailContent() {
   const [message, setMessage] = useState("");
   const [liveKitToken, setLiveKitToken] = useState("");
   const [joinStatus, setJoinStatus] = useState("");
+  const liveKitRoom = useMemo(
+    () =>
+      new Room({
+        adaptiveStream: true,
+        dynacast: true,
+      }),
+    [],
+  );
   const socket = useMeetingSocket(code, accessToken);
 
-  const meeting = useGetMeetingQuery(code);
-  const waiting = useGetWaitingRoomQuery(code);
-  const participants = useGetParticipantsQuery(code);
+  const meeting = useGetMeetingQuery(code, { pollingInterval: 5000 });
+  const waiting = useGetWaitingRoomQuery(code, { pollingInterval: 3000 });
+  const participants = useGetParticipantsQuery(code, { pollingInterval: 3000 });
   const breakouts = useGetBreakoutsQuery(code);
-  const polls = useGetPollsQuery(code);
+  const polls = useGetPollsQuery(code, { pollingInterval: 3000 });
   const screenShare = useGetScreenShareStatusQuery(code);
   const meetingId = meeting.data?.data.id;
   const recordings = useGetRecordingsQuery(meetingId ?? "", { skip: !meetingId });
@@ -128,7 +137,8 @@ function MeetingDetailContent() {
   const [stopRecording] = useStopRecordingMutation();
   const [deleteRecording] = useDeleteRecordingMutation();
   const [getRecordingDownload] = useLazyGetRecordingDownloadQuery();
-  const [getLiveKitToken] = useGetLiveKitTokenMutation();
+  const [getLiveKitToken, liveKitTokenState] = useGetLiveKitTokenMutation();
+  const [autoTokenRequested, setAutoTokenRequested] = useState(false);
 
   const pollForm = useForm<PollFormValues>({
     resolver: zodResolver(createPollSchema),
@@ -196,6 +206,7 @@ function MeetingDetailContent() {
     try {
       const result = await getLiveKitToken({ joinCode: code }).unwrap();
       setLiveKitToken(result.data.token);
+      setAutoTokenRequested(true);
       setMessage("LiveKit token generated.");
     } catch (error) {
       setMessage(getApiErrorMessage(error));
@@ -213,6 +224,7 @@ function MeetingDetailContent() {
 
       if (result.data.livekitToken) {
         setLiveKitToken(result.data.livekitToken);
+        setAutoTokenRequested(true);
         setMessage("Joined live meeting.");
         return;
       }
@@ -253,6 +265,25 @@ function MeetingDetailContent() {
     });
   }
 
+  async function handleStartScreenShare() {
+    await run(async () => {
+      if (!liveKitToken) {
+        const result = await getLiveKitToken({ joinCode: code }).unwrap();
+        setLiveKitToken(result.data.token);
+      }
+
+      await liveKitRoom.localParticipant.setScreenShareEnabled(true, { audio: true });
+      await startScreenShare(code).unwrap();
+    });
+  }
+
+  async function handleStopScreenShare() {
+    await run(async () => {
+      await liveKitRoom.localParticipant.setScreenShareEnabled(false);
+      await stopScreenShare(code).unwrap();
+    });
+  }
+
   async function handleCopyMeetingLink() {
     await navigator.clipboard.writeText(`${window.location.origin}/meetings/${code}`);
     setMessage("Meeting link copied.");
@@ -278,6 +309,20 @@ function MeetingDetailContent() {
   const currentParticipant = participantUsers.find(
     (participant) => getParticipantUserId(participant) === user?.id,
   );
+  const getPollOptionText = (option: (typeof pollItems)[number]["options"][number]) =>
+    option.text ?? option.option ?? option.id;
+  const getPollOptionVoteCount = (option: (typeof pollItems)[number]["options"][number]) =>
+    option.voteCount ?? option.votes ?? 0;
+  const getPollTotalVotes = (poll: (typeof pollItems)[number]) =>
+    poll.totalVotes ?? poll.options?.reduce((sum, option) => sum + getPollOptionVoteCount(option), 0) ?? 0;
+  const getPollOptionPercent = (poll: (typeof pollItems)[number], option: (typeof pollItems)[number]["options"][number]) => {
+    const totalVotes = getPollTotalVotes(poll);
+    const voteCount = getPollOptionVoteCount(option);
+
+    return option.percent ?? (totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0);
+  };
+  const isPollOptionSelected = (poll: (typeof pollItems)[number], option: (typeof pollItems)[number]["options"][number]) =>
+    option.selected || poll.myVoteOptionId === option.id;
   const isHost =
     meeting.data?.data.host_id === user?.id || currentParticipant?.role === "host";
   const canModerate = isHost || currentParticipant?.role === "cohost";
@@ -285,6 +330,41 @@ function MeetingDetailContent() {
     currentParticipant?.status === "admitted" ||
     joinStatus === "admitted" ||
     Boolean(liveKitToken);
+
+  useEffect(() => {
+    setAutoTokenRequested(false);
+  }, [code]);
+
+  useEffect(() => {
+    if (
+      !code ||
+      liveKitToken ||
+      autoTokenRequested ||
+      liveKitTokenState.isLoading ||
+      currentParticipant?.status !== "admitted"
+    ) {
+      return;
+    }
+
+    setAutoTokenRequested(true);
+    getLiveKitToken({ joinCode: code })
+      .unwrap()
+      .then((result) => {
+        setLiveKitToken(result.data.token);
+        setJoinStatus("admitted");
+        setMessage("You were admitted. Joining live meeting.");
+      })
+      .catch((error) => {
+        setMessage(getApiErrorMessage(error));
+      });
+  }, [
+    autoTokenRequested,
+    code,
+    currentParticipant?.status,
+    getLiveKitToken,
+    liveKitToken,
+    liveKitTokenState.isLoading,
+  ]);
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-4 sm:px-6 lg:px-8">
@@ -331,7 +411,7 @@ function MeetingDetailContent() {
         ) : null}
 
         {liveKitToken ? (
-          <LiveRoom serverUrl={liveKitUrl} token={liveKitToken} />
+          <LiveRoom room={liveKitRoom} serverUrl={liveKitUrl} token={liveKitToken} />
         ) : null}
 
         <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
@@ -443,37 +523,66 @@ function MeetingDetailContent() {
               </CardContent>
             </Card>
 
-            {canModerate ? (
             <Card>
               <CardHeader>
                 <CardTitle>Polls</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 p-4 pt-0">
-                <form className="grid gap-3 md:grid-cols-2" onSubmit={pollForm.handleSubmit(handleCreatePoll)}>
-                  <Input placeholder="Question" {...pollForm.register("question")} />
-                  <Input placeholder="Option A" {...pollForm.register("optionA")} />
-                  <Input placeholder="Option B" {...pollForm.register("optionB")} />
-                  <Input placeholder="Option C" {...pollForm.register("optionC")} />
-                  <Button type="submit"><Radio className="size-4" />Create poll</Button>
-                </form>
+                {canModerate ? (
+                  <form className="grid gap-3 md:grid-cols-2" onSubmit={pollForm.handleSubmit(handleCreatePoll)}>
+                    <Input placeholder="Question" {...pollForm.register("question")} />
+                    <Input placeholder="Option A" {...pollForm.register("optionA")} />
+                    <Input placeholder="Option B" {...pollForm.register("optionB")} />
+                    <Input placeholder="Option C" {...pollForm.register("optionC")} />
+                    <Button type="submit"><Radio className="size-4" />Create poll</Button>
+                  </form>
+                ) : null}
+                {pollItems.length === 0 ? (
+                  <p className="text-sm text-slate-500">No polls yet.</p>
+                ) : null}
                 {pollItems.map((poll) => (
                   <div className="rounded-md border border-slate-200 p-3" key={poll.id}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-medium text-slate-900">{poll.question}</p>
-                      <Button size="sm" variant="outline" onClick={() => run(() => closePoll({ code, pollId: poll.id }).unwrap())}>Close</Button>
+                      <div>
+                        <p className="font-medium text-slate-900">{poll.question}</p>
+                        <p className="text-xs text-slate-500">
+                          {getPollTotalVotes(poll)} vote{getPollTotalVotes(poll) === 1 ? "" : "s"}
+                          {(poll.is_closed || poll.isClosed) ? " - closed" : ""}
+                        </p>
+                      </div>
+                      {canModerate && !(poll.is_closed || poll.isClosed) ? (
+                        <Button size="sm" variant="outline" onClick={() => run(() => closePoll({ code, pollId: poll.id }).unwrap())}>Close</Button>
+                      ) : null}
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="mt-3 grid gap-2">
                       {poll.options?.map((option) => (
-                        <Button key={option.id} size="sm" variant="outline" onClick={() => run(() => submitVote({ code, pollId: poll.id, body: { optionId: option.id } }).unwrap())}>
-                          {option.text ?? option.option ?? option.id}
-                        </Button>
+                        <button
+                          className="relative overflow-hidden rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-sm transition-colors hover:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-75"
+                          disabled={poll.is_closed || poll.isClosed}
+                          key={option.id}
+                          onClick={() => run(() => submitVote({ code, pollId: poll.id, body: { optionId: option.id } }).unwrap())}
+                          type="button"
+                        >
+                          <span
+                            className="absolute inset-y-0 left-0 bg-cyan-100"
+                            style={{ width: `${getPollOptionPercent(poll, option)}%` }}
+                          />
+                          <span className="relative flex items-center justify-between gap-3">
+                            <span className="font-medium text-slate-800">
+                              {isPollOptionSelected(poll, option) ? "Selected: " : ""}
+                              {getPollOptionText(option)}
+                            </span>
+                            <span className="shrink-0 text-xs font-semibold text-slate-600">
+                              {getPollOptionVoteCount(option)} - {getPollOptionPercent(poll, option)}%
+                            </span>
+                          </span>
+                        </button>
                       ))}
                     </div>
                   </div>
                 ))}
               </CardContent>
             </Card>
-            ) : null}
           </section>
 
           <aside className="grid content-start gap-6">
@@ -510,8 +619,8 @@ function MeetingDetailContent() {
               <CardContent className="space-y-3 p-4 pt-0">
                 <p className="text-sm text-slate-500">Status: {screenShare.data?.data.status ?? String(screenShare.data?.data.active ?? "unknown")}</p>
                 <div className="flex flex-wrap gap-2">
-                  <Button disabled={!isAdmitted} size="sm" onClick={() => run(() => startScreenShare(code).unwrap())}><MonitorUp className="size-4" />Start</Button>
-                  <Button disabled={!isAdmitted} size="sm" variant="outline" onClick={() => run(() => stopScreenShare(code).unwrap())}>Stop</Button>
+                  <Button disabled={!isAdmitted} size="sm" onClick={handleStartScreenShare}><MonitorUp className="size-4" />Start</Button>
+                  <Button disabled={!isAdmitted} size="sm" variant="outline" onClick={handleStopScreenShare}>Stop</Button>
                   {canModerate && participantUsers[0] ? (
                     <>
                       <Button size="sm" variant="outline" onClick={() => run(() => approveScreenShare({ code, userId: getParticipantUserId(participantUsers[0]) }).unwrap())}>Approve first</Button>

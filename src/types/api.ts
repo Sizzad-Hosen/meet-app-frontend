@@ -174,6 +174,9 @@ export type PollOption = {
   text?: string;
   option?: string;
   votes?: number;
+  voteCount?: number;
+  percent?: number;
+  selected?: boolean;
 };
 
 export type Poll = {
@@ -181,14 +184,20 @@ export type Poll = {
   question: string;
   options: PollOption[];
   isClosed?: boolean;
+  is_closed?: boolean;
+  totalVotes?: number;
+  myVoteOptionId?: string | null;
   createdAt?: string;
+  created_at?: string;
 };
 
 export type PollResult = {
   pollId: string;
   question?: string;
   options: PollOption[];
+  results?: PollOption[];
   totalVotes?: number;
+  myVoteOptionId?: string | null;
 };
 
 export type ScreenShareStatus = {
