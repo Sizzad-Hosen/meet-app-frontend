@@ -4,6 +4,7 @@ import type {
   CreateMeetingRequest,
   CreateMeetingResponse,
   JoinMeetingRequest,
+  JoinMeetingResponse,
   Meeting,
   MeetingParticipant,
   UpdateMeetingRequest,
@@ -44,7 +45,7 @@ export const meetingApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["Meeting"],
     }),
-    joinMeeting: builder.mutation<ApiResponse<Meeting>, JoinMeetingRequest>({
+    joinMeeting: builder.mutation<ApiResponse<JoinMeetingResponse>, JoinMeetingRequest>({
       query: (body) => ({
         url: "/meetings/join",
         method: "POST",

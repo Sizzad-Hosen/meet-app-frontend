@@ -92,6 +92,12 @@ export type JoinMeetingRequest = {
   joinCode: string;
 };
 
+export type JoinMeetingResponse = {
+  meeting: Meeting;
+  participant: MeetingParticipant;
+  livekitToken: string | null;
+};
+
 export type UpdateMeetingRequest = Partial<
   Omit<CreateMeetingRequest, "type" | "scheduled_at">
 > & {
@@ -101,13 +107,18 @@ export type UpdateMeetingRequest = Partial<
 export type MeetingParticipant = {
   id: string;
   userId?: string;
+  user_id?: string;
   meetingId?: string;
+  meeting_id?: string;
   name?: string;
   email?: string;
   role?: "host" | "cohost" | "participant" | string;
   status?: "waiting" | "admitted" | "denied" | string;
   isMuted?: boolean;
+  is_muted?: boolean;
+  livekit_token?: string | null;
   joinedAt?: string;
+  joined_at?: string | null;
 };
 
 export type CreateBreakoutRequest = {

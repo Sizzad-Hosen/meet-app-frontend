@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { FormMessage } from "@/components/auth/form-message";
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { LiveRoom } from "@/components/meeting/live-room";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +41,7 @@ import {
   useGetMeetingQuery,
   useGetParticipantsQuery,
   useGetWaitingRoomQuery,
+  useJoinMeetingMutation,
   useKickParticipantMutation,
   useLeaveMeetingMutation,
   useMuteAllMutation,
@@ -87,6 +89,7 @@ function MeetingDetailContent() {
   const accessToken = useAppSelector((state) => state.auth.accessToken);
   const [message, setMessage] = useState("");
   const [liveKitToken, setLiveKitToken] = useState("");
+  const [joinStatus, setJoinStatus] = useState("");
   const socket = useMeetingSocket(code, accessToken);
 
   const meeting = useGetMeetingQuery(code);
@@ -109,6 +112,7 @@ function MeetingDetailContent() {
   const [deleteMeeting] = useDeleteMeetingMutation();
   const [leaveMeeting] = useLeaveMeetingMutation();
   const [updateMeeting] = useUpdateMeetingMutation();
+  const [joinMeeting] = useJoinMeetingMutation();
   const [createBreakouts] = useCreateBreakoutsMutation();
   const [joinBreakout] = useJoinBreakoutMutation();
   const [endAllBreakouts] = useEndAllBreakoutsMutation();
@@ -198,6 +202,31 @@ function MeetingDetailContent() {
     }
   }
 
+  async function handleJoinMeeting() {
+    setMessage("");
+    setJoinStatus("");
+
+    try {
+      const result = await joinMeeting({ joinCode: code }).unwrap();
+      const participantStatus = result.data.participant.status ?? "";
+      setJoinStatus(participantStatus);
+
+      if (result.data.livekitToken) {
+        setLiveKitToken(result.data.livekitToken);
+        setMessage("Joined live meeting.");
+        return;
+      }
+
+      setMessage(
+        participantStatus === "waiting"
+          ? "You joined the waiting room. The host must admit you before LiveKit can start."
+          : result.message,
+      );
+    } catch (error) {
+      setMessage(getApiErrorMessage(error));
+    }
+  }
+
   async function handleUpdateMeeting(values: UpdateMeetingFormValues) {
     await run(() =>
       updateMeeting({
@@ -231,6 +260,7 @@ function MeetingDetailContent() {
     : breakouts.data?.data.rooms ?? [];
   const pollItems = polls.data?.data ?? [];
   const recordingItems = recordings.data?.data ?? [];
+  const liveKitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL ?? "ws://localhost:7880";
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-4 sm:px-6 lg:px-8">
@@ -250,6 +280,9 @@ function MeetingDetailContent() {
             <Button variant="outline" onClick={handleLeaveMeeting}>
               Leave
             </Button>
+            <Button onClick={handleJoinMeeting}>
+              Join meeting
+            </Button>
             <Button variant="outline" onClick={() => run(() => endMeeting(code).unwrap())}>
               End meeting
             </Button>
@@ -260,6 +293,15 @@ function MeetingDetailContent() {
         </header>
 
         <FormMessage message={message} tone={message.includes("success") || message.includes("generated") ? "success" : "info"} />
+        {joinStatus ? (
+          <Badge variant={joinStatus === "admitted" ? "success" : "warning"}>
+            Your status: {joinStatus}
+          </Badge>
+        ) : null}
+
+        {liveKitToken ? (
+          <LiveRoom serverUrl={liveKitUrl} token={liveKitToken} />
+        ) : null}
 
         <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
           <section className="grid gap-6">
