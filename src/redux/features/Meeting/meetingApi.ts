@@ -2,6 +2,7 @@ import { baseApi } from "@/redux/api/baseApi";
 import type {
   ApiResponse,
   CreateMeetingRequest,
+  CreateMeetingResponse,
   JoinMeetingRequest,
   Meeting,
   MeetingParticipant,
@@ -10,7 +11,10 @@ import type {
 
 export const meetingApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    createMeeting: builder.mutation<ApiResponse<Meeting>, CreateMeetingRequest>({
+    createMeeting: builder.mutation<
+      ApiResponse<CreateMeetingResponse>,
+      CreateMeetingRequest
+    >({
       query: (body) => ({
         url: "/meetings/create",
         method: "POST",
