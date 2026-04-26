@@ -125,8 +125,27 @@ export type BreakoutRoom = {
   id: string;
   name: string;
   meetingId?: string;
+  meeting_id?: string;
+  status?: string;
   participants?: MeetingParticipant[];
   createdAt?: string;
+  created_at?: string;
+};
+
+export type BreakoutCreateResponse = {
+  rooms: BreakoutRoom[];
+  assignments: Array<{
+    participantId: string;
+    roomId: string;
+  }>;
+};
+
+export type BreakoutListResponse = {
+  rooms: BreakoutRoom[];
+  myAssignment: {
+    roomId: string;
+    roomName: string;
+  } | null;
 };
 
 export type CreatePollRequest = {

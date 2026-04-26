@@ -226,7 +226,9 @@ function MeetingDetailContent() {
 
   const waitingUsers = waiting.data?.data ?? [];
   const participantUsers = participants.data?.data ?? [];
-  const breakoutRooms = breakouts.data?.data ?? [];
+  const breakoutRooms = Array.isArray(breakouts.data?.data)
+    ? breakouts.data.data
+    : breakouts.data?.data.rooms ?? [];
   const pollItems = polls.data?.data ?? [];
   const recordingItems = recordings.data?.data ?? [];
 

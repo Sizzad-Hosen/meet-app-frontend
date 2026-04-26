@@ -1,6 +1,8 @@
 import { baseApi } from "@/redux/api/baseApi";
 import type {
   ApiResponse,
+  BreakoutCreateResponse,
+  BreakoutListResponse,
   BreakoutRoom,
   BroadcastBreakoutRequest,
   CreateBreakoutRequest,
@@ -9,7 +11,7 @@ import type {
 export const breakoutApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     createBreakouts: builder.mutation<
-      ApiResponse<BreakoutRoom[]>,
+      ApiResponse<BreakoutCreateResponse>,
       { code: string; body: CreateBreakoutRequest }
     >({
       query: ({ code, body }) => ({
@@ -19,7 +21,7 @@ export const breakoutApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["Breakout", "Participant"],
     }),
-    getBreakouts: builder.query<ApiResponse<BreakoutRoom[]>, string>({
+    getBreakouts: builder.query<ApiResponse<BreakoutListResponse>, string>({
       query: (code) => `/meetings/${code}/breakout`,
       providesTags: ["Breakout"],
     }),
