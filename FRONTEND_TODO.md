@@ -10,6 +10,7 @@
 - [x] Added Redux auth state with local storage hydration.
 - [x] Added auth endpoints: register, login, forgot password, reset password, refresh token, logout.
 - [x] Added meeting endpoints: create, get, update, delete, join, leave, waiting room, admit, admit all, deny, kick, end, mute, mute all, co-host, participants.
+- [x] Added LiveKit token endpoint.
 - [x] Added shadcn-style `Button`, `Card`, `Badge`, and `Input` primitives.
 - [x] Built auth pages: `/login`, `/register`, `/forgot-password`, `/reset-password`.
 - [x] Built the first dashboard screen with live create meeting, join meeting, logout, and feature API map.
@@ -25,7 +26,6 @@
 - [ ] Add poll endpoints: create, list, vote, results, close.
 - [ ] Add screen share endpoints: status, start, stop, approve, deny.
 - [ ] Add recording endpoints: start, stop, list, download, delete.
-- [ ] Add LiveKit token endpoint.
 - [ ] Build full detail pages for meetings, participants, polls, recordings, breakout rooms, screen share, and LiveKit room entry.
 - [ ] Add Socket.IO client integration for live meeting room events.
 - [ ] Add LiveKit room UI after token generation.
