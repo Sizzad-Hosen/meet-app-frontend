@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -23,19 +23,28 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useMeetingSocket } from "@/hooks/use-meeting-socket";
 import { getApiErrorMessage } from "@/lib/api-error";
-import { breakoutSchema, broadcastSchema, createPollSchema } from "@/lib/validations";
+import {
+  breakoutSchema,
+  broadcastSchema,
+  createPollSchema,
+  updateMeetingSchema,
+} from "@/lib/validations";
 import { useAppSelector } from "@/redux/hook";
 import {
   useAdmitAllMutation,
   useAdmitParticipantMutation,
   useAssignCohostMutation,
+  useDeleteMeetingMutation,
+  useDenyParticipantMutation,
   useEndMeetingMutation,
   useGetMeetingQuery,
   useGetParticipantsQuery,
   useGetWaitingRoomQuery,
   useKickParticipantMutation,
+  useLeaveMeetingMutation,
   useMuteAllMutation,
   useMuteParticipantMutation,
+  useUpdateMeetingMutation,
 } from "@/redux/features/Meeting/meetingApi";
 import {
   useBroadcastBreakoutMutation,
@@ -69,9 +78,11 @@ import { useGetLiveKitTokenMutation } from "@/redux/features/livekit/livekitApi"
 type PollFormValues = z.infer<typeof createPollSchema>;
 type BreakoutFormValues = z.infer<typeof breakoutSchema>;
 type BroadcastFormValues = z.infer<typeof broadcastSchema>;
+type UpdateMeetingFormValues = z.infer<typeof updateMeetingSchema>;
 
 function MeetingDetailContent() {
   const params = useParams<{ code: string }>();
+  const router = useRouter();
   const code = params?.code ?? "";
   const accessToken = useAppSelector((state) => state.auth.accessToken);
   const [message, setMessage] = useState("");
@@ -92,8 +103,12 @@ function MeetingDetailContent() {
   const [muteParticipant] = useMuteParticipantMutation();
   const [muteAll] = useMuteAllMutation();
   const [kickParticipant] = useKickParticipantMutation();
+  const [denyParticipant] = useDenyParticipantMutation();
   const [assignCohost] = useAssignCohostMutation();
   const [endMeeting] = useEndMeetingMutation();
+  const [deleteMeeting] = useDeleteMeetingMutation();
+  const [leaveMeeting] = useLeaveMeetingMutation();
+  const [updateMeeting] = useUpdateMeetingMutation();
   const [createBreakouts] = useCreateBreakoutsMutation();
   const [joinBreakout] = useJoinBreakoutMutation();
   const [endAllBreakouts] = useEndAllBreakoutsMutation();
@@ -119,6 +134,19 @@ function MeetingDetailContent() {
   });
   const broadcastForm = useForm<BroadcastFormValues>({
     resolver: zodResolver(broadcastSchema),
+  });
+  const updateForm = useForm<UpdateMeetingFormValues>({
+    resolver: zodResolver(updateMeetingSchema),
+    values: {
+      title: meeting.data?.data.title ?? "",
+      max_participants: meeting.data?.data.max_participants ?? 100,
+      scheduled_at: meeting.data?.data.scheduled_at?.slice(0, 16) ?? "",
+      waiting_room_on: meeting.data?.data.waiting_room_on ?? true,
+      allow_screenshare: meeting.data?.data.allow_screenshare ?? true,
+      screenshare_needs_approval:
+        meeting.data?.data.screenshare_needs_approval ?? false,
+      is_recorded: meeting.data?.data.is_recorded ?? false,
+    },
   });
 
   async function run(action: () => Promise<unknown>) {
@@ -170,6 +198,32 @@ function MeetingDetailContent() {
     }
   }
 
+  async function handleUpdateMeeting(values: UpdateMeetingFormValues) {
+    await run(() =>
+      updateMeeting({
+        code,
+        body: {
+          ...values,
+          scheduled_at: values.scheduled_at || null,
+        },
+      }).unwrap(),
+    );
+  }
+
+  async function handleLeaveMeeting() {
+    await run(async () => {
+      await leaveMeeting(code).unwrap();
+      router.push("/");
+    });
+  }
+
+  async function handleDeleteMeeting() {
+    await run(async () => {
+      await deleteMeeting(code).unwrap();
+      router.push("/");
+    });
+  }
+
   const waitingUsers = waiting.data?.data ?? [];
   const participantUsers = participants.data?.data ?? [];
   const breakoutRooms = breakouts.data?.data ?? [];
@@ -191,8 +245,14 @@ function MeetingDetailContent() {
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="success">Socket {socket.status}</Badge>
             <Badge>{meeting.data?.data.status ?? "loading"}</Badge>
+            <Button variant="outline" onClick={handleLeaveMeeting}>
+              Leave
+            </Button>
             <Button variant="outline" onClick={() => run(() => endMeeting(code).unwrap())}>
               End meeting
+            </Button>
+            <Button variant="outline" onClick={handleDeleteMeeting}>
+              Delete
             </Button>
           </div>
         </header>
@@ -201,6 +261,50 @@ function MeetingDetailContent() {
 
         <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
           <section className="grid gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Meeting settings</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <form
+                  className="grid gap-3 md:grid-cols-2"
+                  onSubmit={updateForm.handleSubmit(handleUpdateMeeting)}
+                >
+                  <Input placeholder="Meeting title" {...updateForm.register("title")} />
+                  <Input
+                    min={2}
+                    placeholder="Max participants"
+                    type="number"
+                    {...updateForm.register("max_participants", {
+                      valueAsNumber: true,
+                    })}
+                  />
+                  <Input type="datetime-local" {...updateForm.register("scheduled_at")} />
+                  <div className="grid gap-2 md:col-span-2 md:grid-cols-2">
+                    {[
+                      ["waiting_room_on", "Waiting room"],
+                      ["allow_screenshare", "Allow screen share"],
+                      ["screenshare_needs_approval", "Require share approval"],
+                      ["is_recorded", "Record meeting"],
+                    ].map(([name, label]) => (
+                      <label
+                        className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+                        key={name}
+                      >
+                        <input
+                          className="size-4 accent-cyan-600"
+                          type="checkbox"
+                          {...updateForm.register(name as keyof UpdateMeetingFormValues)}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  <Button type="submit">Update meeting</Button>
+                </form>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle>Waiting room</CardTitle>
@@ -215,9 +319,14 @@ function MeetingDetailContent() {
                   waitingUsers.map((participant) => (
                     <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 p-3" key={participant.id}>
                       <span className="text-sm text-slate-700">{participant.email ?? participant.userId ?? participant.id}</span>
-                      <Button size="sm" onClick={() => run(() => admitParticipant({ code, userId: participant.userId ?? participant.id }).unwrap())}>
-                        Admit
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => run(() => admitParticipant({ code, userId: participant.userId ?? participant.id }).unwrap())}>
+                          Admit
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => run(() => denyParticipant({ code, userId: participant.userId ?? participant.id }).unwrap())}>
+                          Deny
+                        </Button>
+                      </div>
                     </div>
                   ))
                 )}

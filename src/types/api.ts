@@ -93,8 +93,10 @@ export type JoinMeetingRequest = {
 };
 
 export type UpdateMeetingRequest = Partial<
-  Omit<CreateMeetingRequest, "type">
->;
+  Omit<CreateMeetingRequest, "type" | "scheduled_at">
+> & {
+  scheduled_at?: string | null;
+};
 
 export type MeetingParticipant = {
   id: string;

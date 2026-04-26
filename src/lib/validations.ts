@@ -32,6 +32,16 @@ export const joinMeetingSchema = z.object({
   joinCode: z.string().trim().min(4).max(12),
 });
 
+export const updateMeetingSchema = z.object({
+  title: z.string().trim().min(2, "Meeting title is required"),
+  max_participants: z.number().int().min(2).max(500),
+  scheduled_at: z.string().optional(),
+  waiting_room_on: z.boolean(),
+  allow_screenshare: z.boolean(),
+  screenshare_needs_approval: z.boolean(),
+  is_recorded: z.boolean(),
+});
+
 export const createPollSchema = z.object({
   question: z.string().trim().min(1),
   optionA: z.string().trim().min(1),
