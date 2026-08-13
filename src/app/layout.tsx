@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { AppProviders } from "@/providers/app-providers";
+import "@livekit/components-styles";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Meet Apps",
-  description: "Modern meeting and collaboration workspace",
+  description: "Simple, secure video meetings",
 };
 
 export default function RootLayout({

@@ -13,7 +13,7 @@
 
 ## Next Tasks
 
-- [ ] Connect the create meeting and join meeting forms to RTK Query mutations.
+- [x] Connect the create meeting and join meeting forms to RTK Query mutations.
 - [ ] Build `/login` and `/register` pages and persist access tokens safely.
 - [ ] Add protected app routes for meetings, participants, polls, recordings, and breakout rooms.
 - [ ] Add Socket.IO client integration for live meeting room events.
